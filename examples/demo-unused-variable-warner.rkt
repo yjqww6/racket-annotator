@@ -40,7 +40,7 @@
      [(~or* x:id
             (_:/#%top . x:id)
             (_:/#%variable-reference x:id)
-            (_:/#%variable-reference (#%top . x:id)))
+            (_:/#%variable-reference (_:/#%top . x:id)))
       (mark-used! #'x)
       this-syntax]
      [(_:/#%plain-lambda ~! _:formals _:Expr ...)
