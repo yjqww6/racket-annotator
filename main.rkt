@@ -112,6 +112,13 @@
     (pattern :General-Top-Level-Form)
     )
 
+  (define-syntax-class Module-Begin-Form
+    #:commit
+    #:literal-sets (kernel-literals)
+    #:attributes (out)
+    (pattern ((~and head #%plain-module-begin) mtl:Module-Level-Form ...)
+             #:with out (syntax/track this-syntax (head mtl.out ...))))
+
   (define-syntax-class Top-Level-Form
     #:commit
     #:literal-sets (kernel-literals)
@@ -158,9 +165,8 @@
            (syntax-parse stx
              [m:Expr #'m.out])]
           [(module-begin)
-           (syntax-parse stx #:literal-sets (kernel-literals)
-             [(#%plain-module-begin m:Module-Level-Form ...)
-              (syntax/track this-syntax (#%plain-module-begin m.out ...))])]))))
+           (syntax-parse stx
+             [m:Module-Begin-Form #'m.out])]))))
   
   (begin-for-syntax)
   
