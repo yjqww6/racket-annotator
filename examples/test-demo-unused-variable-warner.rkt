@@ -10,5 +10,15 @@
 (begin-for-syntax
   (let ([x 1]
         [y 1])
-    x))
+    x)
+  (module b racket/base
+    (let ([x 1]
+          [y 1])
+      x)))
+
+(define-syntaxes ()
+  (let ([x 1]
+        [y 1])
+    x
+    (values)))
 

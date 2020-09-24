@@ -8,7 +8,36 @@
     current-general-top-level-form-transformer
     current-module-level-form-transformer
     current-top-level-form-transformer)
+  (define current-phase (make-parameter 0))
   (provide (all-defined-out)))
+
+(module literals racket/base
+  (require syntax/parse/define syntax/parse
+           (for-syntax racket/base racket/syntax syntax/stx)
+           (submod ".." current-transformer)
+           (prefix-in orig: racket/base))
+
+  (define base-phase (variable-reference->module-base-phase (#%variable-reference)))
+
+  (define-simple-macro (define-kernel-literal name:id ...)
+    #:with (provided ...) (stx-map (λ (x) (format-id x "/~a" x)) #'(name ...))
+    (begin
+      (define-syntax-class provided
+        (pattern _:id
+                 #:when (free-identifier=? this-syntax #'name (current-phase) base-phase)))
+      ...
+      (provide provided ...)))
+  (define-kernel-literal
+    #%expression
+    module module*
+    #%plain-module-begin
+    begin-for-syntax
+    #%provide #%require #%declare
+    define-values define-syntaxes
+    #%plain-lambda case-lambda
+    if begin begin0 let-values letrec-values
+    set! quote quote-syntax with-continuation-mark #%plain-app #%top
+    #%variable-reference))
 
 (module utils racket/base
   (require syntax/parse)
@@ -48,9 +77,10 @@
 
 (module class racket/base
   (require syntax/parse syntax/stx
-           (submod ".." current-transformer))
+           (submod ".." current-transformer)
+           (submod ".." literals))
 
-  (provide (all-defined-out))
+  (provide (all-defined-out) current-phase)
 
   (define-syntax-rule (syntax/track loc form)
     (let ([l loc] [f (syntax form)])
@@ -65,70 +95,65 @@
   
   (define-syntax-class Expr
     #:commit
-    #:literal-sets (kernel-literals)
     #:attributes (out)
     (pattern (~var || (Transformed (current-expr-transformer))))
     (pattern out:id)
-    (pattern ((~and head #%plain-lambda) formals expr:Expr ...+)
+    (pattern (head:/#%plain-lambda formals expr:Expr ...+)
              #:with out (syntax/track this-syntax
                                       (head formals expr.out ...)))
-    (pattern ((~and head case-lambda) [formals expr:Expr ...+] ...)
+    (pattern (head:/case-lambda [formals expr:Expr ...+] ...)
              #:with out (syntax/track this-syntax
                                       (head [formals expr.out ...] ...)))
-    (pattern ((~and head (~or* if begin begin0 with-continuation-mark #%plain-app))
+    (pattern ((~and head (~or* _:/if _:/begin _:/begin0 _:/with-continuation-mark _:/#%plain-app))
               expr:Expr ...)
              #:with out (syntax/track this-syntax
                                       (head expr.out ...)))
-    (pattern ((~and head (~or* let-values letrec-values))
+    (pattern ((~and head (~or* _:/let-values _:/letrec-values))
               ([(x:id ...) rhs:Expr] ...)
               expr:Expr ...)
              #:with out (syntax/track this-syntax
                                       (head ([(x ...) rhs.out] ...) expr.out ...)))
-    (pattern ((~and head set!) x:id expr:Expr)
+    (pattern (head:/set! x:id expr:Expr)
              #:with out (syntax/track this-syntax
                                       (head x expr.out)))
-    (pattern ((~and head #%expression) expr:Expr)
+    (pattern (head:/#%expression expr:Expr)
              #:with out (syntax/track this-syntax
                                       (head expr.out)))
     (pattern out))
 
   (define-syntax-class General-Top-Level-Form
     #:commit
-    #:literal-sets (kernel-literals)
     #:attributes (out)
     (pattern (~var || (Transformed (current-general-top-level-form-transformer))))
-    (pattern ((~and head define-values) (x:id ...) expr:Expr)
+    (pattern (head:/define-values (x:id ...) expr:Expr)
              #:with out (syntax/track this-syntax
                                       (head (x ...) expr.out)))
-    (pattern (~and out ((~or* #%require define-syntaxes) . _)))
+    (pattern (~and out ((~or* _:/#%require _:/define-syntaxes) . _)))
     (pattern :Expr))
 
   (define-syntax-class Module-Level-Form
     #:commit
-    #:literal-sets (kernel-literals)
     #:attributes (out)
     (pattern (~var || (Transformed (current-module-level-form-transformer))))
-    (pattern (~and out ((~or* #%provide begin-for-syntax #%declare module module*) . _)))
+    (pattern (~and out ((~or* _:/#%provide _:/begin-for-syntax _:/#%declare _:/module _:/module*) . _)))
     (pattern :General-Top-Level-Form)
     )
 
   (define-syntax-class Module-Begin-Form
     #:commit
-    #:literal-sets (kernel-literals)
     #:attributes (out)
-    (pattern ((~and head #%plain-module-begin) mtl:Module-Level-Form ...)
+    (pattern (head:/#%plain-module-begin mtl:Module-Level-Form ...)
              #:with out (syntax/track this-syntax (head mtl.out ...))))
 
   (define-syntax-class Top-Level-Form
     #:commit
-    #:literal-sets (kernel-literals)
     #:attributes (out)
     (pattern (~var || (Transformed (current-top-level-form-transformer))))
-    (pattern ((~and head #%expression) expr:Expr)
+    (pattern (head:/#%expression expr:Expr)
              #:with out (syntax/track this-syntax (head expr.out)))
-    (pattern ((~or* module begin-for-syntax) . _)
+    (pattern ((~or* _:/module _:/begin-for-syntax) . _)
              #:with out this-syntax)
-    (pattern ((~and head begin) tl:Top-Level-Form ...)
+    (pattern (head:/begin tl:Top-Level-Form ...)
              #:with out (syntax/track this-syntax (head tl.out ...)))
     (pattern :General-Top-Level-Form))
   )
@@ -150,7 +175,8 @@
       (parameterize ([current-expr-transformer e]
                      [current-general-top-level-form-transformer g]
                      [current-module-level-form-transformer m]
-                     [current-top-level-form-transformer t])
+                     [current-top-level-form-transformer t]
+                     [current-phase (syntax-local-phase-level)])
         (case ctx
           [(top-level-form)
            (syntax-parse stx
@@ -168,8 +194,6 @@
            (syntax-parse stx
              [m:Module-Begin-Form #'m.out])]))))
   
-  (begin-for-syntax)
-  
   (define-syntax-parser transformer
     [(_ s:setup)
      #'(λ (stx ctx)
@@ -180,6 +204,21 @@
      #'(define name
          (transformer s.args ...))])
   (provide (all-defined-out)))
+
+(module phase racket/base
+  (require (for-syntax racket/base syntax/parse)
+           syntax/parse (submod ".." current-transformer))
+  (define-syntax ~phase
+    (pattern-expander
+     (syntax-parser
+       [(_ form:expr (~optional delta:expr #:defaults ([delta #'(add1 (current-phase))])))
+        #'(~delimit-cut (~and (~do (define old-phase (current-phase))
+                                   (current-phase delta))
+                              ~!
+                              form
+                              ~!
+                              (~do (current-phase old-phase))))])))
+  (provide ~phase))
 
 (module modbeg racket/base
   (require syntax/parse/define
@@ -197,6 +236,6 @@
   
   (provide define-module-begin))
 
-(require (for-syntax 'transformer 'class) 'modbeg)
-(provide (for-syntax (all-from-out 'transformer 'class))
+(require (for-syntax 'transformer 'class 'literals 'phase) 'modbeg)
+(provide (for-syntax (all-from-out 'transformer 'class 'literals 'phase))
          (all-from-out 'modbeg))

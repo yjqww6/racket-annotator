@@ -15,10 +15,9 @@
 (define-module-begin module-begin
   #:expr
   (syntax-parser
-    #:literal-sets (kernel-literals)
-    [(#%plain-lambda fmls:formals body:Expr ...)
+    [(head:/#%plain-lambda fmls:formals body:Expr ...)
      #:with name (datum->syntax #f (syntax-local-infer-name this-syntax #f))
-     #'(#%plain-lambda
+     #'(head
         fmls
         (#%plain-app displayln (#%plain-app list 'name (~@ 'fmls.args fmls.args) ...))
         body.out ...)]

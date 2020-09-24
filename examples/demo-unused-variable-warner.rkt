@@ -11,22 +11,18 @@
   (define (mark-defined! idt)
     (unless (or (eq? '_ (syntax-e idt))
                 (not (syntax-original? (syntax-local-introduce idt))))
-      (let* ([phase (phase)]
-             [idt (syntax-shift-phase-level idt phase)])
+      (let* ([phase (current-phase)])
         (unless (hash-ref defined-variables phase #f)
           (hash-set! defined-variables phase (mutable-free-id-set #:phase phase)))
         (free-id-set-add! (hash-ref defined-variables phase)
                           idt))))
   
   (define (mark-used! idt)
-    (let* ([phase (phase)]
-           [idt (syntax-shift-phase-level idt phase)])
+    (let* ([phase (current-phase)])
       (unless (hash-ref used-variables phase #f)
         (hash-set! used-variables phase (mutable-free-id-set #:phase phase)))
       (free-id-set-add! (hash-ref used-variables phase)
                         idt)))
-
-  (define phase (make-parameter 0))
 
   (define-syntax-class formals
     (pattern ())
@@ -41,44 +37,31 @@
    result 'module-begin
    #:expr
    (syntax-parser
-     #:literal-sets (kernel-literals)
      [(~or* x:id
-            (#%top . x:id)
-            (#%variable-reference x:id)
-            (#%variable-reference (#%top . x:id)))
+            (_:/#%top . x:id)
+            (_:/#%variable-reference x:id)
+            (_:/#%variable-reference (#%top . x:id)))
       (mark-used! #'x)
       this-syntax]
-     [(#%plain-lambda ~! _:formals _:Expr ...)
+     [(_:/#%plain-lambda ~! _:formals _:Expr ...)
       this-syntax]
-     [(case-lambda ~! [_:formals _:Expr ...] ...)
+     [(_:/case-lambda ~! [_:formals _:Expr ...] ...)
       this-syntax]
-     [((~or* letrec-values let-values) ~! ([f:formals _:Expr] ...) _:Expr ...)
+     [((~or* _:/letrec-values _:/let-values) ~! ([_:formals _:Expr] ...) _:Expr ...)
       this-syntax]
      [_ #f])
    
    #:module-level-form
    (syntax-parser
-     #:literal-sets (kernel-literals)
-     [(begin-for-syntax mtl ...)
-      (parameterize ([phase (add1 (phase))])
-        (syntax-parse (syntax-shift-phase-level #'(mtl ...) -1)
-          [(shifted:Module-Level-Form ...) (void)]))
+     [(_:/begin-for-syntax (~phase (~seq _:Module-Level-Form ...)))
       this-syntax]
-     [((~or* module module*) _ _ plain)
-      (let ([stx (syntax-shift-phase-level #'plain (phase))])
-        (parameterize ([phase 0])
-          (syntax-parse stx
-            [_:Module-Begin-Form (void)])))
+     [((~or* _:/module _:/module*) _ _ (~phase _:Module-Begin-Form 0))
       this-syntax]
      [_ #f])
 
    #:general-top-level-form
    (syntax-parser
-     #:literal-sets (kernel-literals)
-     [(define-syntaxes _ e)
-      (parameterize ([phase (add1 (phase))])
-        (syntax-parse (syntax-shift-phase-level #'e -1)
-          [_:Expr (void)]))
+     [(_:/define-syntaxes _ (~phase _:Expr))
       this-syntax]
      [_ #f])
    )
