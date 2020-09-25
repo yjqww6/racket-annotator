@@ -212,12 +212,13 @@
     (pattern-expander
      (syntax-parser
        [(_ form:expr (~optional delta:expr #:defaults ([delta #'(add1 (current-phase))])))
-        #'(~delimit-cut (~and (~do (define old-phase (current-phase))
-                                   (current-phase delta))
-                              ~!
-                              form
-                              ~!
-                              (~do (current-phase old-phase))))])))
+        #'(~and (~do (define old-phase (current-phase))
+                     (define new-phase delta)
+                     (current-phase new-phase))
+                (~undo (current-phase old-phase))
+                form
+                (~do (current-phase old-phase))
+                (~undo (current-phase new-phase)))])))
   (provide ~phase))
 
 (module modbeg racket/base
