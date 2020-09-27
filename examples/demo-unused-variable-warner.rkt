@@ -55,7 +55,7 @@
    (syntax-parser
      [(_:/begin-for-syntax (~phase (~seq _:Module-Level-Form ...)))
       this-syntax]
-     [((~or* _:/module _:/module*) _ _ (~phase _:Module-Begin-Form 0))
+     [(_:/module _ _ (~phase _:Module-Begin-Form 0))
       this-syntax]
      [_ #f])
 
