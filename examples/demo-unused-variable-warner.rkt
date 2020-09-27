@@ -31,7 +31,7 @@
 
   (define result 
     (syntax-case stx ()
-      [(_ mtl ...) (local-expand #'(#%module-begin mtl ...) 'module-begin '())]))
+      [(_ mtl ...) (local-expand #'(#%module-begin mtl ...) 'module-begin (list #'module*))]))
   
   (transform
    result 'module-begin

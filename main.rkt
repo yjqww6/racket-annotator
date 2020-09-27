@@ -232,7 +232,7 @@
          (let ([f (transformer s.args ...)])
            (syntax-parser
              [(_ . r)
-              (f (local-expand #'(#%module-begin . r) 'module-begin '())
+              (f (local-expand #'(#%module-begin . r) 'module-begin (list #'module*))
                  'module-begin)])))])
   
   (provide define-module-begin))

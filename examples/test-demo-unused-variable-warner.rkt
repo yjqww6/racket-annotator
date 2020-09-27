@@ -22,3 +22,8 @@
     x
     (values)))
 
+(module+ main
+  (let ([x 1]
+        [y 1])
+    x
+    (values)))
