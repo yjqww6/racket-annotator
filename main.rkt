@@ -12,19 +12,21 @@
   (provide (all-defined-out)))
 
 (module literals racket/base
-  (require syntax/parse/define syntax/parse
+  (require syntax/parse/define syntax/parse syntax/parse/experimental/specialize
            (for-syntax racket/base racket/syntax syntax/stx)
            (submod ".." current-transformer)
            (prefix-in orig: racket/base))
 
   (define base-phase (variable-reference->module-base-phase (#%variable-reference)))
 
+  (define-syntax-class (phased-literal lit)
+    (pattern _:id
+             #:when (free-identifier=? this-syntax lit (current-phase) base-phase)))
+  
   (define-simple-macro (define-kernel-literal name:id ...)
     #:with (provided ...) (stx-map (λ (x) (format-id x "/~a" x)) #'(name ...))
     (begin
-      (define-syntax-class provided
-        (pattern _:id
-                 #:when (free-identifier=? this-syntax #'name (current-phase) base-phase)))
+      (define-syntax-class/specialize provided (phased-literal #'name))
       ...
       (provide provided ...)))
   (define-kernel-literal
