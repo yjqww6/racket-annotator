@@ -31,7 +31,7 @@
 
   (define result 
     (syntax-case stx ()
-      [(_ mtl ...) (local-expand #'(#%module-begin mtl ...) 'module-begin (list #'module*))]))
+      [(_ mtl ...) (local-expand #'(#%module-begin mtl ...) 'module-begin null)]))
   
   (transform
    result 'module-begin
@@ -55,7 +55,8 @@
    (syntax-parser
      [(_:/begin-for-syntax (~phase (~seq _:Module-Level-Form ...)))
       this-syntax]
-     [(_:/module _ _ (~phase _:Module-Begin-Form 0))
+     [(_:/module* _ #f _) #f]
+     [((~or _:/module _:/module*) _ _ (~phase _:Module-Begin-Form 0))
       this-syntax]
      [_ #f])
 

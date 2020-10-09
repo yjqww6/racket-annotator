@@ -27,3 +27,9 @@
         [y 1])
     x
     (values)))
+
+(module* t racket/base
+  (let ([x 1]
+        [y 1])
+    x
+    (values)))
