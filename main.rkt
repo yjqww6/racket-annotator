@@ -32,7 +32,7 @@
   (define-kernel-literal
     #%expression
     module module*
-    #%plain-module-begin
+    #;#%plain-module-begin
     begin-for-syntax
     #%provide #%require #%declare
     define-values define-syntaxes
@@ -144,7 +144,7 @@
   (define-syntax-class Module-Begin-Form
     #:commit
     #:attributes (out)
-    (pattern (head:/#%plain-module-begin mtl:Module-Level-Form ...)
+    (pattern (head:id mtl:Module-Level-Form ...)
              #:with out (syntax/track this-syntax (head mtl.out ...))))
 
   (define-syntax-class Top-Level-Form
